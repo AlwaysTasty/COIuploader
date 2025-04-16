@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Image Uploader to GitHub</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      padding: 20px;
+      max-width: 500px;
+      margin: auto;
+    }
+    input[type="file"] {
+      margin-bottom: 10px;
+    }
+    button {
+      padding: 10px;
+      font-size: 16px;
+    }
+    #status {
+      margin-top: 20px;
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+  <h2>📸 Upload Image to GitHub</h2>
+  <input type="file" id="imageInput" accept="image/*" />
+  <br/>
+  <input type="text" id="fileName" placeholder="Image name (e.g., photo.jpg)" />
+  <br/><br/>
+  <button onclick="uploadToGitHub()">Upload</button>
+
+  <div id="status"></div>
+
+  <script>
+    const GITHUB_TOKEN = 'YOUR_GITHUB_TOKEN_HERE'; // <<--- Replace with your token
+    const REPO_OWNER = 'your-username';             // <<--- Replace with your username
+    const REPO_NAME = 'your-repo';                  // <<--- Replace with your repo name
+    const BRANCH = 'main';                          // <<--- Replace with your branch
+
+    async function uploadToGitHub() {
+      const fileInput = document.getElementById('imageInput');
+      const fileName = document.getElementById('fileName').value || 'image.jpg';
+      const status = document.getElementById('status');
+
+      if (!fileInput.files.length) {
+        status.textContent = 'Please select an image.';
+        return;
+      }
+
+      const file = fileInput.files[0];
+      const reader = new FileReader();
+
+      reader.onloadend = async () => {
+        const base64 = reader.result.split(',')[1];
+
+        const url = `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/uploads/${fileName}`;
+        const message = `Upload ${fileName} on ${new Date().toLocaleString()}`;
+
+        const response = await fetch(url, {
+          method: 'PUT',
+          headers: {
+            'Authorization': `token ${GITHUB_TOKEN}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            message: message,
+            content: base64,
+            branch: BRANCH
+          })
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          const rawUrl = `https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/${BRANCH}/uploads/${fileName}`;
+          status.innerHTML = `✅ Uploaded!<br/><a href="${rawUrl}" target="_blank">${rawUrl}</a>`;
+        } else {
+          const error = await response.json();
+          status.textContent = `❌ Error: ${error.message}`;
+        }
+      };
+
+      reader.readAsDataURL(file);
+    }
+  </script>
+</body>
+</html>
