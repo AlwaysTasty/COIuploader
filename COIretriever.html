@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Download Uploaded Images</title>
+  <style>
+    body { font-family: sans-serif; padding: 20px; max-width: 600px; margin: auto; }
+    a { display: block; margin: 5px 0; color: blue; text-decoration: underline; }
+  </style>
+</head>
+<body>
+  <h2>📥 Download Uploaded Images</h2>
+  <div id="imageLinks">Loading...</div>
+
+  <script>
+    const REPO_OWNER = 'AlwaysTasty';
+    const REPO_NAME = 'COIuploader';
+    const BRANCH = 'main';
+
+    async function loadImages() {
+      const res = await fetch(`https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/uploads`);
+      const container = document.getElementById('imageLinks');
+
+      if (!res.ok) {
+        const err = await res.json();
+        container.textContent = `❌ Failed to load: ${err.message}`;
+        return;
+      }
+
+      const files = await res.json();
+      if (files.length === 0) {
+        container.textContent = 'No images found.';
+        return;
+      }
+
+      container.innerHTML = '';
+      files.forEach(file => {
+        const a = document.createElement('a');
+        a.href = `https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/${BRANCH}/uploads/${file.name}`;
+        a.download = file.name;
+        a.textContent = `⬇️ ${file.name}`;
+        container.appendChild(a);
+      });
+    }
+
+    loadImages();
+  </script>
+</body>
+</html>
