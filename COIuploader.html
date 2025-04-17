@@ -1,88 +1,113 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Image Uploader to GitHub</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Multi Image Uploader</title>
   <style>
-    body {
-      font-family: sans-serif;
-      padding: 20px;
-      max-width: 500px;
-      margin: auto;
-    }
-    input[type="file"] {
-      margin-bottom: 10px;
-    }
-    button {
-      padding: 10px;
-      font-size: 16px;
-    }
-    #status {
-      margin-top: 20px;
-      font-weight: bold;
-    }
+    body { font-family: sans-serif; padding: 20px; max-width: 600px; margin: auto; }
+    input, button { margin: 10px 0; padding: 10px; width: 100%; }
+    #status { margin-top: 20px; font-weight: bold; }
   </style>
 </head>
 <body>
-  <h2>📸 Upload Image to GitHub</h2>
-  <input type="file" id="imageInput" accept="image/*" />
-  <br/>
-  <input type="text" id="fileName" placeholder="Image name (e.g., photo.jpg)" />
-  <br/><br/>
-  <button onclick="uploadToGitHub()">Upload</button>
-
+  <h2>📤 Upload Multiple Images</h2>
+  <input type="file" id="imageInput" accept="image/*" multiple>
+  <button onclick="uploadImages()">Upload Images</button>
+  <button onclick="clearUploads()">🧹 Clear All Uploaded Images</button>
   <div id="status"></div>
 
   <script>
-    const GITHUB_TOKEN = 'YOUR_GITHUB_TOKEN_HERE'; // <<--- Replace with your token
-    const REPO_OWNER = 'your-username';             // <<--- Replace with your username
-    const REPO_NAME = 'your-repo';                  // <<--- Replace with your repo name
-    const BRANCH = 'main';                          // <<--- Replace with your branch
+    const GITHUB_TOKEN = 'YOUR_GITHUB_TOKEN_HERE';
+    const REPO_OWNER = 'your-username';
+    const REPO_NAME = 'your-repo';
+    const BRANCH = 'main';
 
-    async function uploadToGitHub() {
-      const fileInput = document.getElementById('imageInput');
-      const fileName = document.getElementById('fileName').value || 'image.jpg';
+    async function uploadImages() {
+      const input = document.getElementById('imageInput');
+      const files = input.files;
       const status = document.getElementById('status');
-
-      if (!fileInput.files.length) {
-        status.textContent = 'Please select an image.';
+      if (!files.length) {
+        status.textContent = 'Please select images.';
         return;
       }
 
-      const file = fileInput.files[0];
-      const reader = new FileReader();
+      const today = new Date().toISOString().split('T')[0];
+      status.innerHTML = 'Uploading...<br>';
 
-      reader.onloadend = async () => {
-        const base64 = reader.result.split(',')[1];
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        const reader = new FileReader();
+        const fileName = `${today}_${i + 1}${file.name.match(/\.\w+$/)?.[0] || '.jpg'}`;
 
-        const url = `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/uploads/${fileName}`;
-        const message = `Upload ${fileName} on ${new Date().toLocaleString()}`;
+        await new Promise(resolve => {
+          reader.onloadend = async () => {
+            const base64 = reader.result.split(',')[1];
+            const url = `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/uploads/${fileName}`;
+            const res = await fetch(url, {
+              method: 'PUT',
+              headers: {
+                'Authorization': `token ${GITHUB_TOKEN}`,
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({
+                message: `Upload ${fileName}`,
+                content: base64,
+                branch: BRANCH
+              })
+            });
+            if (res.ok) {
+              status.innerHTML += `✅ ${fileName}<br>`;
+            } else {
+              const err = await res.json();
+              status.innerHTML += `❌ ${fileName}: ${err.message}<br>`;
+            }
+            resolve();
+          };
+          reader.readAsDataURL(file);
+        });
+      }
+    }
 
-        const response = await fetch(url, {
-          method: 'PUT',
+    async function clearUploads() {
+      const url = `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/uploads`;
+      const res = await fetch(url, {
+        headers: {
+          'Authorization': `token ${GITHUB_TOKEN}`
+        }
+      });
+
+      const status = document.getElementById('status');
+
+      if (!res.ok) {
+        const err = await res.json();
+        status.textContent = `❌ Failed to list files: ${err.message}`;
+        return;
+      }
+
+      const files = await res.json();
+      status.innerHTML = 'Deleting files...<br>';
+
+      for (const file of files) {
+        const delRes = await fetch(file.url, {
+          method: 'DELETE',
           headers: {
             'Authorization': `token ${GITHUB_TOKEN}`,
             'Content-Type': 'application/json'
           },
           body: JSON.stringify({
-            message: message,
-            content: base64,
+            message: `Delete ${file.name}`,
+            sha: file.sha,
             branch: BRANCH
           })
         });
-
-        if (response.ok) {
-          const data = await response.json();
-          const rawUrl = `https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/${BRANCH}/uploads/${fileName}`;
-          status.innerHTML = `✅ Uploaded!<br/><a href="${rawUrl}" target="_blank">${rawUrl}</a>`;
+        if (delRes.ok) {
+          status.innerHTML += `🗑️ Deleted ${file.name}<br>`;
         } else {
-          const error = await response.json();
-          status.textContent = `❌ Error: ${error.message}`;
+          const err = await delRes.json();
+          status.innerHTML += `❌ Failed to delete ${file.name}: ${err.message}<br>`;
         }
-      };
-
-      reader.readAsDataURL(file);
+      }
     }
   </script>
 </body>
