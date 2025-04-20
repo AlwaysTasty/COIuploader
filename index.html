@@ -1,22 +1,26 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Download Uploaded Images</title>
   <style>
     body { font-family: sans-serif; padding: 20px; max-width: 600px; margin: auto; }
     a { display: block; margin: 5px 0; color: blue; text-decoration: underline; }
+    button { margin-top: 20px; padding: 10px; width: 100%; font-size: 16px; }
   </style>
 </head>
 <body>
   <h2>📥 Download Uploaded Images</h2>
   <div id="imageLinks">Loading...</div>
+  <button onclick="downloadAll()">⬇️ Download All</button>
 
   <script>
-    const REPO_OWNER = 'AlwaysTasty';
-    const REPO_NAME = 'COIuploader';
-    const BRANCH = 'main';
+    const REPO_OWNER = 'AlwaysTasty';  // Replace me
+    const REPO_NAME = 'COIuploader';       // Replace me
+    const BRANCH = 'main';               // Replace me
+
+    let fileList = [];
 
     async function loadImages() {
       const res = await fetch(`https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/uploads`);
@@ -28,20 +32,50 @@
         return;
       }
 
-      const files = await res.json();
-      if (files.length === 0) {
+      fileList = await res.json();
+
+      if (fileList.length === 0) {
         container.textContent = 'No images found.';
         return;
       }
 
       container.innerHTML = '';
-      files.forEach(file => {
+      fileList.forEach(file => {
         const a = document.createElement('a');
         a.href = `https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/${BRANCH}/uploads/${file.name}`;
         a.download = file.name;
         a.textContent = `⬇️ ${file.name}`;
         container.appendChild(a);
       });
+    }
+
+    async function downloadAll() {
+      if (fileList.length === 0) {
+        alert("No files to download.");
+        return;
+      }
+
+      for (const file of fileList) {
+        const rawUrl = `https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/${BRANCH}/uploads/${file.name}`;
+
+        try {
+          const response = await fetch(rawUrl);
+          const blob = await response.blob();
+
+          const blobUrl = window.URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = blobUrl;
+          a.download = file.name;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          window.URL.revokeObjectURL(blobUrl);
+
+          await new Promise(r => setTimeout(r, 500)); // delay between downloads
+        } catch (err) {
+          console.error(`❌ Failed to download ${file.name}:`, err);
+        }
+      }
     }
 
     loadImages();
